@@ -1,6 +1,6 @@
 const TELEGRAMAPI = '7946745300:AAGlA-YMWtLCQ0dElFGCpTJzxGirgPCH7qM';
 const telegramApi = require('node-telegram-bot-api')
-const {Sequelize} = require('sequelize')
+/* const {Sequelize} = require('sequelize')
 
 const sequelize = new Sequelize(
     process.env.DB_URL,
@@ -13,7 +13,7 @@ sequelize.sync().then(() => {
     console.log("Database connected");
 }).catch((err) => {
     console.log(err);
-})
+}) */
 
 const {againOption, gameOptions} = require('./options')
 const bot = new telegramApi(TELEGRAMAPI, {polling: true})
