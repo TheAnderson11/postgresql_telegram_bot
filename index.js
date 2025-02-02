@@ -1,20 +1,7 @@
 const TELEGRAMAPI = '7946745300:AAGlA-YMWtLCQ0dElFGCpTJzxGirgPCH7qM';
 const telegramApi = require('node-telegram-bot-api')
-/* const {Sequelize} = require('sequelize')
-
-const sequelize = new Sequelize(
-    process.env.DB_URL,
-    {
-    dialect: "sqlite",
-    storage: "./database.sqlite",
-    logging: false
-})
-sequelize.sync().then(() => {
-    console.log("Database connected");
-}).catch((err) => {
-    console.log(err);
-}) */
-
+const sequelize = require('./db')
+const UserModel = require('./modules')
 const {againOption, gameOptions} = require('./options')
 const bot = new telegramApi(TELEGRAMAPI, {polling: true})
 
@@ -27,7 +14,13 @@ const startGame = async (chatId) => {
     await bot.sendMessage(chatId, 'Отгадай число', gameOptions)
 }
 
-const start = () => {
+const start = async () => {
+    try {
+        await sequelize.authenticate()
+        await sequelize.sync()
+    } catch (error) {
+        console.log(error);
+    }
     bot.setMyCommands([
         {command: '/start', description: 'Start wellcome'},
         {command: '/info', description: 'Get information'},
@@ -37,15 +30,23 @@ const start = () => {
     bot.on('message', async msg => {
         const text = msg.text;
         const chatId = msg.chat.id;
-        if (text === '/start') {
-            await bot.sendSticker(chatId,'https://tlgrm.eu/_/stickers/b0d/85f/b0d85fbf-de1b-4aaf-836c-1cddaa16e002/1.webp')
-            return bot.sendMessage(chatId, `Wellcome in the shop ${msg.from.first_name} ${msg.from.last_name}`)
-        } if(text === '/info'){
-            return bot.sendMessage(chatId, `Your name ${msg.from.first_name} ${msg.from.last_name}`)
-        } if(text === '/game') {
-            return startGame(chatId)
+
+        try {
+            if (text === '/start') {
+                await UserModel.create({chatId})
+                await bot.sendSticker(chatId,'https://tlgrm.eu/_/stickers/b0d/85f/b0d85fbf-de1b-4aaf-836c-1cddaa16e002/1.webp')
+                return bot.sendMessage(chatId, `Wellcome in the shop ${msg.from.first_name} ${msg.from.last_name}`)
+            } if(text === '/info'){
+                const user = await UserModel.findOne({chatId})
+                return bot.sendMessage(chatId, `Your name ${msg.from.first_name} ${msg.from.last_name}, в игре у тебя правильных ответов ${user.right}, неправильных ${user.wrong}`)
+            } if(text === '/game') {
+                return startGame(chatId)
+            }
+            return bot.sendMessage(chatId, "I don't understand your message")
+        } catch (error) {
+            return bot.sendMessage(chatId, `Возникла ошибка ${error}`)
         }
-        return bot.sendMessage(chatId, "I don't understand your message")
+
     })
 }
 
