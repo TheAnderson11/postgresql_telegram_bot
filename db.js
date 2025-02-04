@@ -3,10 +3,10 @@ const {Sequelize} = require('sequelize')
 module.exports = new Sequelize(
     'railway',
     'postgres',
-    'BDwusxYRWdGgeMngINNxgzFfOrPuecyt',
+    'OxSQGFNbpPGucvrtIUpgyrqnDBduYROc',
     {
         host: 'autorack.proxy.rlwy.net',
-        port: '49119',
+        port: '53351',
         dialect: 'postgres'
     }
 )
