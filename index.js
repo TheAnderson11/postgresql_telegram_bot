@@ -37,7 +37,7 @@ const start = async () => {
                 await bot.sendSticker(chatId,'https://tlgrm.eu/_/stickers/b0d/85f/b0d85fbf-de1b-4aaf-836c-1cddaa16e002/1.webp')
                 return bot.sendMessage(chatId, `Wellcome in the shop ${msg.from.first_name} ${msg.from.last_name}`)
             } if(text === '/info'){
-                const user = await UserModel.findOne({where: {chatId}})
+                const user = await UserModel.findOne({where: {chatId: chatId.toString()}})
                 return bot.sendMessage(chatId, `Your name ${msg.from.first_name} ${msg.from.last_name}, в игре у тебя правильных ответов ${user.right}, неправильных ${user.wrong}`)
             } if(text === '/game') {
                 return startGame(chatId)
@@ -56,7 +56,7 @@ const start = async () => {
         if (data === '/again') {
             return startGame(chatId)
         }
-        const user = await UserModel.findOne({where: {chatId}})
+        const user = await UserModel.findOne({where: {chatId:chatId.toString()}})
         if(data === chats[chatId].toString()){
             user.right += 1
             await bot.sendMessage(chatId, `Поздравляю, ты отгадал цифру ${chats[chatId]}`, againOption)
