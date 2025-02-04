@@ -1,4 +1,4 @@
-const TELEGRAMAPI = '7946745300:AAGlA-YMWtLCQ0dElFGCpTJzxGirgPCH7qM';
+const TELEGRAMAPI = '8050196668:AAEst8DfLTC72AYdaMuu9KzfxF23Ly9w3Us';
 const telegramApi = require('node-telegram-bot-api')
 const sequelize = require('./db')
 const UserModel = require('./modules')
@@ -50,16 +50,20 @@ const start = async () => {
     })
 }
 
-    bot.on('callback_query',msg => {
+    bot.on('callback_query',async msg => {
         const data = msg.data;
         const chatId = msg.message.chat.id
         if (data === '/again') {
             return startGame(chatId)
         }
+        const user = await UserModel.findOne({chatId})
         if(data === chats[chatId].toString()){
-            return bot.sendMessage(chatId, `Поздравляю, ты отгадал цифру ${chats[chatId]}`, againOption)
+            user.right += 1
+            await bot.sendMessage(chatId, `Поздравляю, ты отгадал цифру ${chats[chatId]}`, againOption)
         } else {
-            return bot.sendMessage(chatId, `К сожалению ты не угадал, бот загадал цифру ${chats[chatId]}`, againOption)
+            user.wrong += 1
+            await bot.sendMessage(chatId, `К сожалению ты не угадал, бот загадал цифру ${chats[chatId]}`, againOption)
         }
+        await user.save()
     })
 start()
