@@ -1,10 +1,12 @@
-const TELEGRAMAPI = '8050196668:AAEst8DfLTC72AYdaMuu9KzfxF23Ly9w3Us';
+require('dotenv').config();
 const telegramApi = require('node-telegram-bot-api')
 const sequelize = require('./db')
 const UserModel = require('./modules')
-const {againOption, gameOptions} = require('./options')
-const bot = new telegramApi(TELEGRAMAPI, {polling: true})
+const { againOption, gameOptions } = require('./options')
 
+const TELEGRAMAPI = process.env.TG_API
+const bot = new telegramApi(TELEGRAMAPI, {polling: true})
+console.log(TELEGRAMAPI)
 const chats = {}
 
 const startGame = async (chatId) => {
