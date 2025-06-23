@@ -11,6 +11,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "docx": "^9.5.1",
     "dotenv": "^16.4.7",
     "node-telegram-bot-api": "^0.66.0",
     "nodemon": "^3.1.9",

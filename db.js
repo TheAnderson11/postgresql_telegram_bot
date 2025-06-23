@@ -1,12 +1,14 @@
-const {Sequelize} = require('sequelize')
+require('dotenv').config();
+const { Sequelize } = require('sequelize');
 
 module.exports = new Sequelize(
-    'railway',
-    'postgres',
-    'OxSQGFNbpPGucvrtIUpgyrqnDBduYROc',
+    process.env.PGDATABASE,
+    process.env.PGUSER,
+    process.env.PGPASSWORD,
     {
-        host: 'autorack.proxy.rlwy.net',
-        port: '53351',
-        dialect: 'postgres'
+        host: process.env.PGHOST,
+        port: process.env.PGPORT,
+        dialect: 'postgres',
+        logging: false
     }
-)
+);
