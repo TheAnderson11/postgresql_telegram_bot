@@ -1,17 +1,17 @@
 import fontkit from '@pdf-lib/fontkit';
 import fetch from 'node-fetch';
-import pkg from 'pdf-lib';
+import pkg, { StandardFonts } from 'pdf-lib';
 const { PDFDocument, rgb } = pkg;
 
 export async function createPdf(state, bot) {
     const pdfDoc = await PDFDocument.create();
-    pdfDoc.registerFontkit(fontkit); // <-- Ось правильний виклик
-
+    pdfDoc.registerFontkit(fontkit);
+    console.log(state)
     let page = pdfDoc.addPage([600, 800]);
     const { width, height } = page.getSize();
     const fontSize = 12;
 
-    const fontUrl = 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5.2.7/files/noto-sans-cyrillic-400-normal.woff';
+    const fontUrl = 'https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf';
 
     let customFont;
     try {
@@ -35,7 +35,7 @@ export async function createPdf(state, bot) {
             x: options.x || 50,
             y,
             size: options.size || fontSize,
-            font: customFont,
+            font: customFont,  // Используем fontUrl шрифт здесь
             color: options.color || rgb(0, 0, 0),
         });
         y -= (options.size || fontSize) + 5;
@@ -43,11 +43,13 @@ export async function createPdf(state, bot) {
 
     drawText('Дані зібрано:');
     drawText('');
+
     drawText(`Позивач: ${state.data.claimant_name || '-'}`);
     drawText(`Адреса: ${state.data.claimant_address || '-'}`);
     drawText(`Телефон: ${state.data.claimant_phone || '-'}`);
     drawText(`ІПН: ${state.data.claimant_ipn || '-'}`);
     drawText('');
+
     drawText(`Відповідач: ${state.data.respondent_name || '-'}`);
     drawText(`Адреса: ${state.data.respondent_address || '-'}`);
     drawText(`Телефон: ${state.data.respondent_phone || '-'}`);
@@ -55,9 +57,15 @@ export async function createPdf(state, bot) {
     drawText(`ІПН: ${state.data.respondent_ipn || '-'}`);
     drawText('');
 
+    const livesWithMap = {
+        father: 'батьком',
+        mother: 'матір\'ю',
+        other: 'іншим'
+    };
+
     drawText('Діти:');
     for (const [i, child] of state.children.entries()) {
-        drawText(`  №${i + 1}: ${child.name}, ${child.dob}, проживає з ${child.lives_with}`);
+        drawText(`  №${i + 1}: ${child.name}, ${child.dob}, проживає з ${livesWithMap[child.lives_with] || '-'}`);
     }
     drawText('');
 
@@ -67,9 +75,9 @@ export async function createPdf(state, bot) {
 
     drawText('');
     drawText(`Аліменти: ${state.data.alimony || '-'}`);
-    drawText(`Суд: ${state.data.court || '-'}`);
-    drawText(`Рішення раніше: ${state.data.previous_decision || '-'}`);
-    drawText(`Стягнення за минулий період: ${state.data.past_period || '-'}`);
+    drawText(`Суд: ${state.data.court_name || '-'}`);
+    drawText(`Рішення раніше: ${state.data.previous_decision === true ? 'Так' : state.data.previous_decision === false ? 'Ні' : '-'}`);
+    drawText(`Стягнення за минулий період: ${state.data.enforcement_period || '-'}`);
     drawText('');
     drawText('Додатки:');
 
@@ -79,10 +87,12 @@ export async function createPdf(state, bot) {
             const res = await fetch(url);
             const imgBytes = await res.arrayBuffer();
 
-            const isPng = url.toLowerCase().endsWith('.png');
-            const img = isPng
-                ? await pdfDoc.embedPng(imgBytes)
-                : await pdfDoc.embedJpg(imgBytes);
+            let img;
+            try {
+                img = await pdfDoc.embedPng(imgBytes);
+            } catch {
+                img = await pdfDoc.embedJpg(imgBytes);
+            }
 
             const scale = Math.min((width - 100) / img.width, (height - 100) / img.height, 0.4);
             const dims = img.scale(scale);
@@ -105,5 +115,5 @@ export async function createPdf(state, bot) {
         }
     }
 
-    return await pdfDoc.save(); // повертаємо Buffer
+    return await pdfDoc.save();
 }
