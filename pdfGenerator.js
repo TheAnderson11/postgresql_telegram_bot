@@ -63,10 +63,14 @@ export async function createPdf(state, bot) {
     };
 
     drawText('Діти:');
-    for (const [i, child] of state.children.entries()) {
-        drawText(`  №${i + 1}: ${child.name}, ${child.dob}, проживає з ${livesWithMap[child.lives_with] || '-'}`);
-    }
-    drawText('');
+
+    state.children.forEach((child, index) => {
+        drawText(`№${index + 1}`);
+        drawText(`• ПІБ: ${child.name || '-'}`);
+        drawText(`• Дата народження: ${child.dob || '-'}`);
+        drawText(`• Проживає з: ${livesWithMap[child.lives_with] || '-'}`);
+        drawText('');
+    });
 
     if (state.data.marriage_date) drawText(`Шлюб: ${state.data.marriage_date}`);
     if (state.data.divorce_date) drawText(`Розлучення: ${state.data.divorce_date}`);
@@ -87,51 +91,52 @@ export async function createPdf(state, bot) {
         'Квитанція про сплату судового збору (у деяких випадках аліменти звільнені від судового збору)'
     ];
 
-    for (let i = 0; i < (state.attachments || []).length; i++) {
-        const fileId = state.attachments[i];
-        const title = photoTitles[i] || `Документ №${i + 1}`;
+for (let i = 0; i < (state.attachments || []).length; i++) {
+    const fileId = state.attachments[i];
+    const title = photoTitles[i] || `Документ №${i + 1}`;
 
-        if (!fileId) {
-            // Пропускаем пустое место
-            continue;
-        }
+    if (!fileId) continue;
 
+    try {
+        const url = await bot.getFileLink(fileId);
+        const res = await fetch(url);
+        const imgBytes = await res.arrayBuffer();
+
+        let img;
         try {
-            const url = await bot.getFileLink(fileId);
-            const res = await fetch(url);
-            const imgBytes = await res.arrayBuffer();
-
-            let img;
-            try {
-                img = await pdfDoc.embedPng(imgBytes);
-            } catch {
-                img = await pdfDoc.embedJpg(imgBytes);
-            }
-
-            drawText(`• ${title}`);
-
-            const scale = Math.min((width - 100) / img.width, (height - 100) / img.height, 0.4);
-            const dims = img.scale(scale);
-
-            if (y < dims.height + 20) {
-                page = pdfDoc.addPage([600, 800]);
-                y = height - 30;
-            }
-
-            y -= dims.height + 10;
-
-            page.drawImage(img, {
-                x: 50,
-                y,
-                width: dims.width,
-                height: dims.height,
-            });
-
-            y -= 20;
-        } catch (e) {
-            drawText(`❌ Не вдалося додати зображення (${title}): ${e.message || e}`);
+            img = await pdfDoc.embedPng(imgBytes);
+        } catch {
+            img = await pdfDoc.embedJpg(imgBytes);
         }
+
+        const newPage = pdfDoc.addPage([600, 800]);
+        const { width, height } = newPage.getSize();
+        let y = height - 50;
+
+        newPage.drawText(`• ${title}`, {
+            x: 50,
+            y,
+            size: fontSize,
+            font: customFont,
+            color: rgb(0, 0, 0),
+        });
+
+        const scale = Math.min((width - 100) / img.width, (height - 150) / img.height, 0.7);
+        const dims = img.scale(scale);
+
+        newPage.drawImage(img, {
+            x: 50,
+            y: y - dims.height - 20,
+            width: dims.width,
+            height: dims.height,
+        });
+    } catch (e) {
+        const errorPage = pdfDoc.addPage([600, 800]);
+        errorPage.drawText(`❌ Не вдалося додати зображення (${title}): ${e.message || e}`, {
+            x: 50, y: 750, size: fontSize, font: customFont, color: rgb(1, 0, 0),
+        });
     }
+}
 
     return await pdfDoc.save();
 }
