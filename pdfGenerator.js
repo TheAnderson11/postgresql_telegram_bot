@@ -6,7 +6,6 @@ const { PDFDocument, rgb } = pkg;
 export async function createPdf(state, bot) {
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
-    console.log(state)
     let page = pdfDoc.addPage([600, 800]);
     const { width, height } = page.getSize();
     const fontSize = 12;
@@ -35,7 +34,7 @@ export async function createPdf(state, bot) {
             x: options.x || 50,
             y,
             size: options.size || fontSize,
-            font: customFont,  // Используем fontUrl шрифт здесь
+            font: customFont,
             color: options.color || rgb(0, 0, 0),
         });
         y -= (options.size || fontSize) + 5;
@@ -81,7 +80,22 @@ export async function createPdf(state, bot) {
     drawText('');
     drawText('Додатки:');
 
-    for (const fileId of (state.attachments || [])) {
+    const photoTitles = [
+        'Свідоцтво про народження дитини (копія)',
+        'Свідоцтво про шлюб/про розірвання шлюбу (якщо є)',
+        'Довідка про склад сім’ї або місце проживання дитини',
+        'Квитанція про сплату судового збору (у деяких випадках аліменти звільнені від судового збору)'
+    ];
+
+    for (let i = 0; i < (state.attachments || []).length; i++) {
+        const fileId = state.attachments[i];
+        const title = photoTitles[i] || `Документ №${i + 1}`;
+
+        if (!fileId) {
+            // Пропускаем пустое место
+            continue;
+        }
+
         try {
             const url = await bot.getFileLink(fileId);
             const res = await fetch(url);
@@ -94,6 +108,8 @@ export async function createPdf(state, bot) {
                 img = await pdfDoc.embedJpg(imgBytes);
             }
 
+            drawText(`• ${title}`);
+
             const scale = Math.min((width - 100) / img.width, (height - 100) / img.height, 0.4);
             const dims = img.scale(scale);
 
@@ -101,6 +117,7 @@ export async function createPdf(state, bot) {
                 page = pdfDoc.addPage([600, 800]);
                 y = height - 30;
             }
+
             y -= dims.height + 10;
 
             page.drawImage(img, {
@@ -109,9 +126,10 @@ export async function createPdf(state, bot) {
                 width: dims.width,
                 height: dims.height,
             });
+
             y -= 20;
         } catch (e) {
-            drawText(`❌ Не вдалося додати зображення: ${e.message || e}`);
+            drawText(`❌ Не вдалося додати зображення (${title}): ${e.message || e}`);
         }
     }
 

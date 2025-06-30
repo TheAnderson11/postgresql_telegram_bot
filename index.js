@@ -28,6 +28,7 @@ const restartFlow = (chatId) => {
         childrenTotal: 0,
         attachments: [],
         attachmentStep: 0,
+        lastReminderSent: null,
         chatId
     };
     bot.sendMessage(chatId, '1. Інформація про позивача (той, хто подає заяву):\nВкажіть ПІБ позивача:');
@@ -46,67 +47,40 @@ bot.on('callback_query', async (query) => {
     if (!state) return restartFlow(chatId);
 
     // Обработка "Пропустити"
-    if (data === 'skip') {
-        const nextSteps = {
-            'claimant_phone': ['claimant_ipn', 'ІПН позивача:'],
-            'claimant_ipn': ['respondent_name', '2. ПІБ відповідача:'],
-            'respondent_address': ['respondent_phone', 'Контактний номер відповідача:'],
-            'respondent_phone': ['respondent_work', 'Місце роботи відповідача:'],
-            'respondent_work': ['respondent_ipn', 'ІПН відповідача:'],
-            'respondent_ipn': ['children_count', '3. Скільки у вас дітей?'],
-            'marriage_date': ['marriage_divorce', 'Чи розірвано шлюб?', {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: 'Так', callback_data: 'divorce_yes' }],
-                        [{ text: 'Ні', callback_data: 'divorce_no' }]
-                    ]
-                }
-            }],
-            'marriage_divorce_date': ['alimony_choice', '5. Сума аліментів або спосіб визначення:', {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '1/4 від доходу', callback_data: 'percent_1_4' }],
-                        [{ text: '1/3 від доходу', callback_data: 'percent_1_3' }],
-                        [{ text: '1/2 від доходу', callback_data: 'percent_1_2' }],
-                        [{ text: 'Ввести суму', callback_data: 'enter_amount' }]
-                    ]
-                }
-            }],
-            'court_name': ['previous_decision', '7. Чи були вже рішення суду щодо аліментів?', {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: 'Так', callback_data: 'prev_yes' }],
-                        [{ text: 'Ні', callback_data: 'prev_no' }]
-                    ]
-                }
-            }],
-            'previous_decision': ['enforcement_period', '8. Чи потрібне стягнення аліментів за минулий період?', {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: 'Так', callback_data: 'enforcement_yes' }],
-                        [{ text: 'Ні', callback_data: 'enforcement_no' }]
-                    ]
-                }
-            }],
-            'enforcement_period': ['waiting_attachments', 'За який період?', {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '1 рік', callback_data: 'period_1' }],
-                        [{ text: '2 роки', callback_data: 'period_2' }],
-                        [{ text: '3 роки', callback_data: 'period_3' }]
-                    ]
-                }
-            }],
-        };
-        const next = nextSteps[state.step];
-        if (next) {
-            state.step = next[0];
-            if (typeof next[2] === 'object') {
-                return bot.sendMessage(chatId, next[1], next[2]);
+    if (data === 'skip' && state.step === 'waiting_attachments') {
+        const photoTitles = [
+            'Свідоцтво про народження дитини (копія)',
+            'Свідоцтво про шлюб/про розірвання шлюбу (якщо є)',
+            'Довідка про склад сім’ї або місце проживання дитини',
+            'Квитанція про сплату судового збору'
+        ];
+
+        // Добавляем маркер пропуска в attachments на текущий шаг
+        state.attachments[state.attachmentStep] = null;
+
+        state.attachmentStep++;
+
+        if (state.attachmentStep < photoTitles.length) {
+            const nextDoc = photoTitles[state.attachmentStep];
+
+            if (nextDoc === 'Свідоцтво про шлюб/про розірвання шлюбу (якщо є)') {
+                await bot.sendMessage(chatId, `Додайте: ${nextDoc}`, {
+                    reply_markup: {
+                        inline_keyboard: [[{ text: 'Пропустити', callback_data: 'skip' }]]
+                    }
+                });
             } else {
-                return bot.sendMessage(chatId, next[1], skipButton());
+                await bot.sendMessage(chatId, `Додайте: ${nextDoc}`);
             }
+        } else {
+            state.step = 'submit_ready';
+            await bot.sendMessage(chatId, '✅ Усі документи отримано. Натисніть нижче, щоб надіслати заяву:', {
+                reply_markup: {
+                    inline_keyboard: [[{ text: '📨 Надіслати заяву', callback_data: 'submit_form' }]]
+                }
+            });
         }
+        return bot.answerCallbackQuery(query.id);
     }
 
     // Обработка отправки формы (создание PDF)
@@ -117,9 +91,8 @@ bot.on('callback_query', async (query) => {
                 data: state.data,
                 children: state.children,
                 attachments: state.attachments
-            }, bot); // Обрати bot для getFileLink
-            
-            // Конвертируем Uint8Array в Buffer
+            }, bot);
+
             const pdfBuffer = Buffer.from(pdfBytes);
 
             await bot.sendDocument(chatId, pdfBuffer, {
@@ -133,7 +106,7 @@ bot.on('callback_query', async (query) => {
             await bot.sendMessage(chatId, 'Помилка при формуванні PDF.');
         }
         return bot.answerCallbackQuery(query.id);
-}
+    }
 
     // Выбор вариантов
     switch (data) {
@@ -230,7 +203,10 @@ bot.on('callback_query', async (query) => {
         case 'prev_no':
             state.data.previous_decision = false;
             state.step = 'waiting_attachments';
+            state.attachmentStep = 0;
+            state.attachments = [];
             await bot.sendMessage(chatId, 'Додайте необхідні документи:');
+            await bot.sendMessage(chatId, 'Свідоцтво про народження дитини (копія)');
             break;
 
         // Стягнення аліментів
@@ -249,7 +225,10 @@ bot.on('callback_query', async (query) => {
         case 'enforcement_no':
             state.data.enforcement_period = null;
             state.step = 'waiting_attachments';
+            state.attachmentStep = 0;
+            state.attachments = [];
             await bot.sendMessage(chatId, 'Додайте необхідні документи:');
+            await bot.sendMessage(chatId, 'Свідоцтво про народження дитини (копія)');
             break;
 
         // Вибір періоду стягнення
@@ -258,7 +237,10 @@ bot.on('callback_query', async (query) => {
         case 'period_3':
             state.data.enforcement_period = data.replace('period_', '') + ' роки';
             state.step = 'waiting_attachments';
+            state.attachmentStep = 0;
+            state.attachments = [];
             await bot.sendMessage(chatId, 'Додайте необхідні документи:');
+            await bot.sendMessage(chatId, 'Свідоцтво про народження дитини (копія)');
             break;
 
         default:
@@ -414,11 +396,27 @@ bot.on('message', async (msg) => {
             ];
 
             if (msg.photo) {
+                if (msg.media_group_id) {
+                    return bot.sendMessage(chatId, '⚠️ Будь ласка, надсилайте фото по одному, а не альбомом.');
+                }
+
                 const largest = msg.photo[msg.photo.length - 1];
-                state.attachments.push(largest.file_id);
-                if (state.attachmentStep < photoTitles.length - 1) {
-                    state.attachmentStep++;
-                    return bot.sendMessage(chatId, `Додайте: ${photoTitles[state.attachmentStep]}`, skipButton());
+                // Записываем фото по текущему шагу
+                state.attachments[state.attachmentStep] = largest.file_id;
+                state.attachmentStep++;
+
+                if (state.attachmentStep < photoTitles.length) {
+                    const nextDoc = photoTitles[state.attachmentStep];
+
+                    if (nextDoc === 'Свідоцтво про шлюб/про розірвання шлюбу (якщо є)') {
+                        return bot.sendMessage(chatId, `Додайте: ${nextDoc}`, {
+                            reply_markup: {
+                                inline_keyboard: [[{ text: 'Пропустити', callback_data: 'skip' }]]
+                            }
+                        });
+                    } else {
+                        return bot.sendMessage(chatId, `Додайте: ${nextDoc}`);
+                    }
                 } else {
                     state.step = 'submit_ready';
                     return bot.sendMessage(chatId, '✅ Усі документи отримано. Натисніть нижче, щоб надіслати заяву:', {
@@ -428,22 +426,16 @@ bot.on('message', async (msg) => {
                     });
                 }
             } else {
-                return bot.sendMessage(chatId, `Надішліть фото: ${photoTitles[state.attachmentStep]}`, skipButton());
+                return bot.sendMessage(chatId, 'Будь ласка, надішліть фото документів.');
             }
         }
 
         default:
-            break;
+            return bot.sendMessage(chatId, 'Невідомий крок. Введіть /start для початку.');
     }
 });
 
+// Запуск express (если нужен)
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-app.get('/', (_, res) => {
-    res.send('Bot is running!');
-});
-
-app.listen(PORT, () => {
-    console.log(`Express server is listening on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
