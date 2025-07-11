@@ -24,7 +24,8 @@ export async function createPdf(state, bot) {
     const fontBold = await pdfDoc.embedFont(fontBoldBytes);
 
 
-    const dateObj = parseDate(state.data.claimant_years_old)
+    const dateObj = parseDate(state.data.claimant_years_old) || { day: '___', monthName: '__________', year: '____' };
+
 
     function wrapText(text, maxWidth, font, fontSize) {
     const words = text.split(' ');

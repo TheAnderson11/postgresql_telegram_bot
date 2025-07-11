@@ -1,4 +1,5 @@
 function parseDate(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return null;
     // Массив месяцев в родительном падеже (для документов)
     const months = [
         'січня', 'лютого', 'березня', 'квітня', 'травня', 'червня',
